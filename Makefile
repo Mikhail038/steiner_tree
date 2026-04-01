@@ -9,7 +9,10 @@ VR_FLAGS = -g -ggdb3
 
 # VR_FLAGS += $(DOP)
 
+# VR_FLAGS += -O3
+
 VR_FLAGS += -O0 -fno-inline -fno-omit-frame-pointer	
+
 
 #==============================================================================================================================================
 
@@ -34,9 +37,10 @@ OBJ:
 	mkdir -p obj
 
 clean:
-	rm callgrind.out.*
+	rm -f callgrind.out.*
 	rm -rf obj
-	rm bin
+	rm -f bin
+	rm -f log
 
 # valgrind --tool=callgrind ./bin dat/0030_0000.json
 # kcachegrind callgrind.out.XXXXXXX

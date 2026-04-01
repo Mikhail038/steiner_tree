@@ -4,6 +4,8 @@
 #include <limits.h>
 #include "cJSON.h"
 #include <stdbool.h>
+#include <time.h>
+
 typedef struct 
 {
     int id;
@@ -447,12 +449,6 @@ void modified_algorithm(point_t *terminals, int terms_n,
                 edge_t **result_edges, int *edges_n)
 {
     basic_algorithm(terminals, terms_n, result_points, points_n, result_edges, edges_n);
-    // local_search(result_points, points_n, result_edges, edges_n);
-
-    // for (int i = 0; i < *edges_n; i++)
-    // {
-    //     (*result_edges)[i].id = i + 1;
-    // }
 }
 
 void write_output(char *filename, point_t *points, int n, edge_t *edges, int m)
@@ -609,6 +605,9 @@ int main(int argc, char *argv[])
     int points_n = 0;
     int edges_n = 0;
 
+    struct timespec start, end;
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
     if (modified)
     {
         modified_algorithm(terminals, terms_n, &points, &points_n, &edges, &edges_n);
@@ -617,6 +616,8 @@ int main(int argc, char *argv[])
     {
         basic_algorithm(terminals, terms_n, &points, &points_n, &edges, &edges_n);
     }
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     
     char outfile[256];
     char *dot = strrchr(filename, '.');
@@ -642,8 +643,8 @@ int main(int argc, char *argv[])
         total_len += manhattan(points[ui], points[vi]);
     }
     
-    printf("Total length: %d\n", total_len);
-    printf("Output written to %s\n", outfile);
+    printf("time [%6.3f ms] length [%3d]\n", elapsed * 1000, total_len);
+    // printf("Output written to %s\n", outfile);
     
     free(terminals);
     free(points);
