@@ -3,34 +3,31 @@
 #include <string.h>
 #include <limits.h>
 #include "cJSON.h"
-
-// ------------------ Структуры данных ------------------
-
-typedef struct point_s
+#include <stdbool.h>
+typedef struct 
 {
     int id;
     int x;
     int y;
-    char type;   // 't' - терминал, 's' - штейнер
+    char type;   // 't' - terminal, 's' - steiner
 } point_t;
 
-typedef struct edge_s
+typedef struct
 {
     int id;
     int u;
     int v;
 } edge_t;
 
-// ------------------ Вспомогательные функции ------------------
 
 int manhattan(point_t a, point_t b)
 {
     return abs(a.x - b.x) + abs(a.y - b.y);
 }
 
-int find_point_by_id(point_t *points, int n, int id)
+int find_point_by_id(point_t *points, int points_n, int id)
 {
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < points_n; i++)
     {
         if (points[i].id == id)
         {
@@ -40,18 +37,16 @@ int find_point_by_id(point_t *points, int n, int id)
     return -1;
 }
 
-// ------------------ MST (алгоритм Прима) ------------------
-
 double prim_mst(point_t *points, int n, int *parent)
 {
-    int *visited = calloc(n, sizeof(int));
+    bool *visited = calloc(n, sizeof(bool)); //fill 0
     int *min_dist = malloc(n * sizeof(int));
     for (int i = 0; i < n; i++)
     {
         min_dist[i] = INT_MAX;
     }
 
-    visited[0] = 1;
+    visited[0] = true;
     for (int i = 1; i < n; i++)
     {
         min_dist[i] = manhattan(points[0], points[i]);
@@ -73,9 +68,9 @@ double prim_mst(point_t *points, int n, int *parent)
         }
         if (u == -1)
         {
-            break;    // несвязный граф (не должен возникнуть)
+            break;    // disconnected graph
         }
-        visited[u] = 1;
+        visited[u] = true;
         total += best;
         for (int v = 0; v < n; v++)
         {
@@ -96,83 +91,135 @@ double prim_mst(point_t *points, int n, int *parent)
     return total;
 }
 
-// ------------------ Кандидаты сетки Ханана ------------------
-
-void get_hanan_candidates(point_t *points, int n, int **cand_x, int **cand_y, int *cand_count)
+double prim_mst_no_parent(point_t *points, int n)
 {
-    int *xs = malloc(n * sizeof(int));
-    int *ys = malloc(n * sizeof(int));
-    int nx = 0, ny = 0;
-
+    bool *visited = calloc(n, sizeof(bool)); //fill 0
+    int *min_dist = malloc(n * sizeof(int));
     for (int i = 0; i < n; i++)
     {
-        int dup_x = 0, dup_y = 0;
-        for (int j = 0; j < nx; j++)
-        {
-            if (xs[j] == points[i].x)
-            {
-                dup_x = 1;
-                break;
-            }
-        }
-        if (!dup_x)
-        {
-            xs[nx++] = points[i].x;
-        }
+        min_dist[i] = INT_MAX;
+    }
 
-        for (int j = 0; j < ny; j++)
+    visited[0] = true;
+    for (int i = 1; i < n; i++)
+    {
+        min_dist[i] = manhattan(points[0], points[i]);
+    }
+
+    double total = 0.0;
+    for (int k = 1; k < n; k++)
+    {
+        int u = -1;
+        int best = INT_MAX;
+        for (int i = 0; i < n; i++)
         {
-            if (ys[j] == points[i].y)
+            if (!visited[i] && min_dist[i] < best)
             {
-                dup_y = 1;
-                break;
+                best = min_dist[i];
+                u = i;
             }
         }
-        if (!dup_y)
+        if (u == -1)
         {
-            ys[ny++] = points[i].y;
+            break;    // disconnected graph
+        }
+        visited[u] = true;
+        total += best;
+        for (int v = 0; v < n; v++)
+        {
+            if (!visited[v])
+            {
+                int d = manhattan(points[u], points[v]);
+                if (d < min_dist[v])
+                {
+                    min_dist[v] = d;
+                }
+            }
         }
     }
 
-    int max_cand = nx * ny;
-    int *cx = malloc(max_cand * sizeof(int));
-    int *cy = malloc(max_cand * sizeof(int));
-    int cnt = 0;
-    for (int i = 0; i < nx; i++)
+    free(visited);
+    free(min_dist);
+    return total;
+}
+
+void get_hanan_candidates(point_t *points, int n, int **cand_x, 
+                int **cand_y, int *cand_count)
+{
+    int *x_unique = malloc(n * sizeof(int));
+    int *y_unique = malloc(n * sizeof(int));
+    int x_unique_n = 0, y_unique_n = 0;
+
+    bool x_exist, y_exist;
+    for (int i = 0; i < n; i++)
     {
-        for (int j = 0; j < ny; j++)
+        x_exist = false;
+        for (int j = 0; j < x_unique_n; j++)
         {
-            int x = xs[i], y = ys[j];
-            int exists = 0;
+            if (x_unique[j] == points[i].x)
+            {
+                x_exist = true;
+                break;
+            }
+        }
+        if (!x_exist)
+        {
+            x_unique[x_unique_n++] = points[i].x;
+        }
+
+        y_exist = false;
+        for (int j = 0; j < y_unique_n; j++)
+        {
+            if (y_unique[j] == points[i].y)
+            {
+                y_exist = true;
+                break;
+            }
+        }
+        if (!y_exist)
+        {
+            y_unique[y_unique_n++] = points[i].y;
+        }
+    }
+
+    int max_cand = x_unique_n * y_unique_n;
+    int *x_candidate = malloc(max_cand * sizeof(int));
+    int *y_candidate = malloc(max_cand * sizeof(int));
+
+    int cnt = 0;
+    for (int i = 0; i < x_unique_n; i++)
+    {
+        for (int j = 0; j < y_unique_n; j++)
+        {
+            int x = x_unique[i], y = y_unique[j];
+            bool exists = false;
             for (int k = 0; k < n; k++)
             {
                 if (points[k].x == x && points[k].y == y)
                 {
-                    exists = 1;
+                    exists = true;
                     break;
                 }
             }
             if (!exists)
             {
-                cx[cnt] = x;
-                cy[cnt] = y;
+                x_candidate[cnt] = x;
+                y_candidate[cnt] = y;
                 cnt++;
             }
         }
     }
 
-    *cand_x = cx;
-    *cand_y = cy;
+    *cand_x = x_candidate;
+    *cand_y = y_candidate;
     *cand_count = cnt;
 
-    free(xs);
-    free(ys);
+    free(x_unique);
+    free(y_unique);
 }
 
-// ------------------ Удаление плохих точек Штейнера ------------------
-
 void build_adj(point_t *points, int n, edge_t *edges, int m,
-               int ***adj, int **adj_sizes)
+                int ***adj, int **adj_sizes)
 {
     *adj = malloc(n * sizeof(int*));
     *adj_sizes = calloc(n, sizeof(int));
@@ -203,157 +250,14 @@ void free_adj(int **adj, int n)
     free(adj);
 }
 
-void remove_bad_steiner(point_t **points_ptr, int *n_ptr,
-                        edge_t **edges_ptr, int *m_ptr)
+void basic_algorithm(point_t *terminals, int terms_n,
+                point_t **result_points, int *points_n,
+                edge_t **result_edges, int *edges_n)
 {
-    point_t *points = *points_ptr;
-    int n = *n_ptr;
-    edge_t *edges = *edges_ptr;
-    int m = *m_ptr;
-
-    int changed = 1;
-    while (changed)
-    {
-        changed = 0;
-        int **adj = NULL;
-        int *adj_sizes = NULL;
-        build_adj(points, n, edges, m, &adj, &adj_sizes);
-
-        for (int i = 0; i < n; i++)
-        {
-            if (points[i].type != 's')
-            {
-                continue;
-            }
-            int deg = adj_sizes[i];
-            if (deg < 3)
-            {
-                if (deg == 1)
-                {
-                    int nb_idx = adj[i][0];
-                    int nb_id = points[nb_idx].id;
-                    int pid = points[i].id;
-
-                    // Удаляем ребро
-                    printf("1\n");
-                    edge_t *new_edges = malloc((m - 1) * sizeof(edge_t));
-                    int new_m = 0;
-                    for (int j = 0; j < m; j++)
-                    {
-                        if (!((edges[j].u == pid && edges[j].v == nb_id) ||
-                              (edges[j].u == nb_id && edges[j].v == pid)))
-                        {
-                            new_edges[new_m++] = edges[j];
-                        }
-                    }
-                    free(edges);
-                    edges = new_edges;
-                    m = new_m;
-
-                    // Удаляем точку
-                    printf("2\n");
-                    point_t *new_points = malloc((n - 1) * sizeof(point_t));
-                    int new_n = 0;
-                    for (int j = 0; j < n; j++)
-                    {
-                        if (j != i)
-                        {
-                            new_points[new_n++] = points[j];
-                        }
-                    }
-                    free(points);
-                    points = new_points;
-                    n = new_n;
-
-                    changed = 1;
-                    break;
-                }
-                else if (deg == 2)
-                {
-                    int u_idx = adj[i][0], v_idx = adj[i][1];
-                    int u_id = points[u_idx].id, v_id = points[v_idx].id;
-                    int pid = points[i].id;
-
-                    // Удаляем два ребра, добавляем одно
-                    printf("3\n");
-                    edge_t *new_edges = malloc((m - 1) * sizeof(edge_t));
-                    int new_m = 0;
-                    for (int j = 0; j < m; j++)
-                    {
-                        if (!((edges[j].u == pid && edges[j].v == u_id) ||
-                              (edges[j].u == u_id && edges[j].v == pid) ||
-                              (edges[j].u == pid && edges[j].v == v_id) ||
-                              (edges[j].u == v_id && edges[j].v == pid)))
-                        {
-                            new_edges[new_m++] = edges[j];
-                        }
-                    }
-
-                    // Проверяем, не существует ли уже ребро u-v
-                    int exists = 0;
-                    for (int j = 0; j < new_m; j++)
-                    {
-                        if ((new_edges[j].u == u_id && new_edges[j].v == v_id) ||
-                            (new_edges[j].u == v_id && new_edges[j].v == u_id))
-                        {
-                            exists = 1;
-                            break;
-                        }
-                    }
-                    if (!exists)
-                    {
-                        edge_t e;
-                        e.id = 0; // временно
-                        e.u = u_id;
-                        e.v = v_id;
-                        new_edges[new_m++] = e;
-                    }
-
-                    free(edges);
-                    edges = new_edges;
-                    m = new_m;
-
-                    // Удаляем точку
-                    printf("4\n");
-                    point_t *new_points = malloc((n - 1) * sizeof(point_t));
-                    int new_n = 0;
-                    for (int j = 0; j < n; j++)
-                    {
-                        if (j != i)
-                        {
-                            new_points[new_n++] = points[j];
-                        }
-                    }
-                    free(points);
-                    points = new_points;
-                    n = new_n;
-
-                    changed = 1;
-                    break;
-                }
-                // deg == 0 не бывает в связном дереве
-            }
-        }
-
-        free_adj(adj, n);
-        free(adj_sizes);
-    }
-
-    *points_ptr = points;
-    *n_ptr = n;
-    *edges_ptr = edges;
-    *m_ptr = m;
-}
-
-// ------------------ Базовый алгоритм I1S ------------------
-
-void basic_algorithm(point_t *terminals, int nterm,
-                     point_t **result_points, int *res_n,
-                     edge_t **result_edges, int *res_m)
-{
-    point_t *points = malloc(nterm * sizeof(point_t));
-    memcpy(points, terminals, nterm * sizeof(point_t));
-    int n = nterm;
+    point_t *points = malloc(terms_n * sizeof(point_t));
+    memcpy(points, terminals, terms_n * sizeof(point_t));
+    
+    int n = terms_n;
     int next_id = 0;
     for (int i = 0; i < n; i++)
     {
@@ -362,13 +266,11 @@ void basic_algorithm(point_t *terminals, int nterm,
             next_id = points[i].id;
         }
     }
-    next_id++;
+    next_id += 1;
 
     while (1)
     {
-        int *parent = malloc(n * sizeof(int));
-        double cur_len = prim_mst(points, n, parent);
-        free(parent);
+        double cur_len = prim_mst_no_parent(points, n);
 
         int *cand_x = NULL, *cand_y = NULL, cand_count = 0;
         get_hanan_candidates(points, n, &cand_x, &cand_y, &cand_count);
@@ -383,9 +285,7 @@ void basic_algorithm(point_t *terminals, int nterm,
             memcpy(temp_points, points, n * sizeof(point_t));
             temp_points[n] = cand;
 
-            int *temp_parent = malloc((n + 1) * sizeof(int));
-            double new_len = prim_mst(temp_points, n + 1, temp_parent);
-            free(temp_parent);
+            double new_len = prim_mst_no_parent(temp_points, n + 1);
 
             double gain = cur_len - new_len;
             if (gain > best_gain)
@@ -428,24 +328,20 @@ void basic_algorithm(point_t *terminals, int nterm,
     }
     free(parent);
 
-    remove_bad_steiner(&points, &n, &edges, &m);
-
-    // Перенумеруем рёбра (на случай, если удаление изменило их количество)
     for (int i = 0; i < m; i++)
     {
         edges[i].id = i + 1;
     }
 
     *result_points = points;
-    *res_n = n;
+    *points_n = n;
     *result_edges = edges;
-    *res_m = m;
+    *edges_n = m;
 }
 
-// ------------------ Локальный поиск (модификация) ------------------
 
 void local_search(point_t **points_ptr, int *n_ptr,
-                  edge_t **edges_ptr, int *m_ptr)
+                edge_t **edges_ptr, int *m_ptr)
 {
     point_t *points = *points_ptr;
     int n = *n_ptr;
@@ -546,23 +442,18 @@ void local_search(point_t **points_ptr, int *n_ptr,
     *m_ptr = new_m;
 }
 
-// ------------------ Модифицированный алгоритм ------------------
-
-void modified_algorithm(point_t *terminals, int nterm,
-                        point_t **result_points, int *res_n,
-                        edge_t **result_edges, int *res_m)
+void modified_algorithm(point_t *terminals, int terms_n,
+                point_t **result_points, int *points_n,
+                edge_t **result_edges, int *edges_n)
 {
-    basic_algorithm(terminals, nterm, result_points, res_n, result_edges, res_m);
-    local_search(result_points, res_n, result_edges, res_m);
-    remove_bad_steiner(result_points, res_n, result_edges, res_m);
+    basic_algorithm(terminals, terms_n, result_points, points_n, result_edges, edges_n);
+    // local_search(result_points, points_n, result_edges, edges_n);
 
-    for (int i = 0; i < *res_m; i++)
-    {
-        (*result_edges)[i].id = i + 1;
-    }
+    // for (int i = 0; i < *edges_n; i++)
+    // {
+    //     (*result_edges)[i].id = i + 1;
+    // }
 }
-
-// ------------------ Запись выходного JSON ------------------
 
 void write_output(char *filename, point_t *points, int n, edge_t *edges, int m)
 {
@@ -614,8 +505,6 @@ void write_output(char *filename, point_t *points, int n, edge_t *edges, int m)
     free(json_str);
     cJSON_Delete(root);
 }
-
-// ------------------ Чтение входного файла ------------------
 
 point_t *read_input(char *filename, int *n)
 {
@@ -682,7 +571,6 @@ point_t *read_input(char *filename, int *n)
     return points;
 }
 
-
 int main(int argc, char *argv[])
 {
     if (argc < 2)
@@ -709,8 +597,8 @@ int main(int argc, char *argv[])
         filename = argv[1];
     }
 
-    int nterm = 0;
-    point_t *terminals = read_input(filename, &nterm);
+    int terms_n = 0;
+    point_t *terminals = read_input(filename, &terms_n);
     if (!terminals)
     {
         return 1;
@@ -718,17 +606,18 @@ int main(int argc, char *argv[])
 
     point_t *points = NULL;
     edge_t *edges = NULL;
-    int n = 0, m = 0;
+    int points_n = 0;
+    int edges_n = 0;
 
     if (modified)
     {
-        modified_algorithm(terminals, nterm, &points, &n, &edges, &m);
+        modified_algorithm(terminals, terms_n, &points, &points_n, &edges, &edges_n);
     }
     else
     {
-        basic_algorithm(terminals, nterm, &points, &n, &edges, &m);
+        basic_algorithm(terminals, terms_n, &points, &points_n, &edges, &edges_n);
     }
-
+    
     char outfile[256];
     char *dot = strrchr(filename, '.');
     if (dot && strcmp(dot, ".json") == 0)
@@ -742,20 +631,20 @@ int main(int argc, char *argv[])
     {
         sprintf(outfile, "%s_out.json", filename);
     }
-
-    write_output(outfile, points, n, edges, m);
-
+    
+    write_output(outfile, points, points_n, edges, edges_n);
+    
     int total_len = 0;
-    for (int i = 0; i < m; i++)
+    for (int i = 0; i < edges_n; i++)
     {
-        int ui = find_point_by_id(points, n, edges[i].u);
-        int vi = find_point_by_id(points, n, edges[i].v);
+        int ui = find_point_by_id(points, points_n, edges[i].u);
+        int vi = find_point_by_id(points, points_n, edges[i].v);
         total_len += manhattan(points[ui], points[vi]);
     }
-
+    
     printf("Total length: %d\n", total_len);
     printf("Output written to %s\n", outfile);
-
+    
     free(terminals);
     free(points);
     free(edges);
