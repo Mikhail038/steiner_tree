@@ -6,19 +6,20 @@ cd steiner_tree
 make
 ~~~
 ## Использование
+JSON файлы для тестов можно брать из папки **dat/**
 Базовый алгоритм:
 ~~~bash
-./bin dat/{filename}.json 
+./bin {filename}.json 
 ~~~
 
 Параллельный алгоритм:
 ~~~bash
-./bin -m dat/{filename}.json 
+./bin -m {filename}.json 
 ~~~
 
 Визуализация:
 ~~~bash
-python3 viz.py dat/{filename}.json 
+python3 viz.py {filename}.json 
 ~~~
 
 Общий тест:
