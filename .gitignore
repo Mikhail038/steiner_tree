@@ -1,4 +1,6 @@
 obj
 bin
 callgrind.out.*
-log
+log1.log
+log2.log
+

@@ -5,6 +5,7 @@
 #include "cJSON.h"
 #include <stdbool.h>
 #include <time.h>
+#include <omp.h>
 
 typedef struct 
 {
@@ -21,6 +22,7 @@ typedef struct
     int v;
 } edge_t;
 
+#define NUM_THREADS 8
 
 int manhattan(point_t a, point_t b)
 {
@@ -309,19 +311,12 @@ void basic_algorithm(point_t *terminals, int terms_n,
     *edges_n = m;
 }
 
-void modified_algorithm(point_t *terminals, int terms_n,
-                point_t **result_points, int *points_n,
-                edge_t **result_edges, int *edges_n)
-{
-    basic_algorithm(terminals, terms_n, result_points, points_n, result_edges, edges_n);
-}
-
 void write_output(char *filename, point_t *points, int n, edge_t *edges, int m)
 {
     cJSON *root = cJSON_CreateObject();
     cJSON *node_arr = cJSON_CreateArray();
     cJSON *edge_arr = cJSON_CreateArray();
-
+    
     for (int i = 0; i < n; i++)
     {
         cJSON *node = cJSON_CreateObject();
@@ -329,7 +324,7 @@ void write_output(char *filename, point_t *points, int n, edge_t *edges, int m)
         cJSON_AddNumberToObject(node, "x", points[i].x);
         cJSON_AddNumberToObject(node, "y", points[i].y);
         cJSON_AddStringToObject(node, "type", points[i].type == 't' ? "t" : "s");
-
+        
         cJSON *edges_list = cJSON_CreateArray();
         for (int j = 0; j < m; j++)
         {
@@ -341,7 +336,7 @@ void write_output(char *filename, point_t *points, int n, edge_t *edges, int m)
         cJSON_AddItemToObject(node, "edges", edges_list);
         cJSON_AddItemToArray(node_arr, node);
     }
-
+    
     for (int j = 0; j < m; j++)
     {
         cJSON *edge = cJSON_CreateObject();
@@ -352,10 +347,10 @@ void write_output(char *filename, point_t *points, int n, edge_t *edges, int m)
         cJSON_AddItemToObject(edge, "vertices", verts);
         cJSON_AddItemToArray(edge_arr, edge);
     }
-
+    
     cJSON_AddItemToObject(root, "node", node_arr);
     cJSON_AddItemToObject(root, "edge", edge_arr);
-
+    
     char *json_str = cJSON_Print(root);
     FILE *f = fopen(filename, "w");
     if (f)
@@ -382,7 +377,7 @@ point_t *read_input(char *filename, int *n)
     fread(data, 1, len, f);
     data[len] = '\0';
     fclose(f);
-
+    
     cJSON *root = cJSON_Parse(data);
     free(data);
     if (!root)
@@ -390,7 +385,7 @@ point_t *read_input(char *filename, int *n)
         printf("JSON parse error\n");
         return NULL;
     }
-
+    
     cJSON *node_arr = cJSON_GetObjectItem(root, "node");
     if (!node_arr || !cJSON_IsArray(node_arr))
     {
@@ -405,7 +400,7 @@ point_t *read_input(char *filename, int *n)
             return NULL;
         }
     }
-
+    
     int count = cJSON_GetArraySize(node_arr);
     point_t *points = malloc(count * sizeof(point_t));
     for (int i = 0; i < count; i++)
@@ -426,11 +421,119 @@ point_t *read_input(char *filename, int *n)
         points[i].y = y->valueint;
         points[i].type = 't';
     }
-
+    
     *n = count;
     cJSON_Delete(root);
     return points;
 }
+
+void parallel_algorithm(point_t *terminals, int terms_n,
+                point_t **result_points, int *points_n,
+                edge_t **result_edges, int *edges_n)
+{
+    omp_set_num_threads(NUM_THREADS);
+
+    point_t *points = malloc(terms_n * sizeof(point_t));
+    memcpy(points, terminals, terms_n * sizeof(point_t));
+    
+    int n = terms_n;
+    int next_id = 0;
+    for (int i = 0; i < n; i++)
+    {
+        if (points[i].id > next_id)
+        {
+            next_id = points[i].id;
+        }
+    }
+    next_id += 1;
+
+    while (1)
+    {
+        double cur_len = prim_mst_no_parent(points, n);
+
+        int *cand_x = NULL, *cand_y = NULL, cand_count = 0;
+        get_hanan_candidates(points, n, &cand_x, &cand_y, &cand_count);
+
+        double best_gain = 0;
+        int best_x = 0, best_y = 0;
+
+        #pragma omp parallel
+        {
+            point_t *temp_points = malloc((n + 1) * sizeof(point_t));
+            double local_best_gain = 0;
+            int local_best_x = 0, local_best_y = 0;
+
+            #pragma omp for
+            for (int i = 0; i < cand_count; i++)
+            {
+                memcpy(temp_points, points, n * sizeof(point_t));
+                temp_points[n] = (point_t){0, cand_x[i], cand_y[i], 's'};
+
+                double new_len = prim_mst_no_parent(temp_points, n + 1);
+                double gain = cur_len - new_len;
+
+                if (gain > local_best_gain)
+                {
+                    local_best_gain = gain;
+                    local_best_x = cand_x[i];
+                    local_best_y = cand_y[i];
+                }
+            }
+
+            #pragma omp critical
+            {
+                if (local_best_gain > best_gain)
+                {
+                    best_gain = local_best_gain;
+                    best_x = local_best_x;
+                    best_y = local_best_y;
+                }
+            }
+
+            free(temp_points);
+        }
+
+        free(cand_x);
+        free(cand_y);
+
+        if (best_gain <= 0)
+        {
+            break;
+        }
+
+        points = realloc(points, (n + 1) * sizeof(point_t));
+        points[n].id = next_id++;
+        points[n].x = best_x;
+        points[n].y = best_y;
+        points[n].type = 's';
+        n++;
+    }
+
+    int *parent = malloc(n * sizeof(int));
+    prim_mst(points, n, parent);
+
+    edge_t *edges = malloc((n - 1) * sizeof(edge_t));
+    int m = 0;
+    for (int i = 1; i < n; i++)
+    {
+        edges[m].id = m + 1;
+        edges[m].u = points[i].id;
+        edges[m].v = points[parent[i]].id;
+        m++;
+    }
+    free(parent);
+
+    for (int i = 0; i < m; i++)
+    {
+        edges[i].id = i + 1;
+    }
+
+    *result_points = points;
+    *points_n = n;
+    *result_edges = edges;
+    *edges_n = m;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -439,7 +542,7 @@ int main(int argc, char *argv[])
         printf("Usage: %s [-m] <test.json>\n", argv[0]);
         return 1;
     }
-
+    
     int modified = 0;
     char *filename = NULL;
 
@@ -475,7 +578,7 @@ int main(int argc, char *argv[])
     clock_gettime(CLOCK_MONOTONIC, &start);
     if (modified)
     {
-        modified_algorithm(terminals, terms_n, &points, &points_n, &edges, &edges_n);
+        parallel_algorithm(terminals, terms_n, &points, &points_n, &edges, &edges_n);
     }
     else
     {
@@ -508,8 +611,7 @@ int main(int argc, char *argv[])
         total_len += manhattan(points[ui], points[vi]);
     }
     
-    printf("time [%6.3f ms] length [%3d]\n", elapsed * 1000, total_len);
-    // printf("Output written to %s\n", outfile);
+    printf("time [%7.3f ms] length [%3d]\n", elapsed * 1000, total_len);
     
     free(terminals);
     free(points);

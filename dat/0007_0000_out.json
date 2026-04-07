@@ -10,13 +10,13 @@
 			"x":	34,
 			"y":	57,
 			"type":	"t",
-			"edges":	[1, 9]
+			"edges":	[1, 10]
 		}, {
 			"id":	3,
 			"x":	60,
 			"y":	67,
 			"type":	"t",
-			"edges":	[2, 8]
+			"edges":	[2]
 		}, {
 			"id":	4,
 			"x":	68,
@@ -49,32 +49,38 @@
 			"edges":	[1, 6, 7]
 		}, {
 			"id":	9,
-			"x":	68,
+			"x":	66,
 			"y":	67,
 			"type":	"s",
-			"edges":	[3, 4, 8]
+			"edges":	[2, 3, 8]
 		}, {
 			"id":	10,
-			"x":	60,
+			"x":	66,
+			"y":	62,
+			"type":	"s",
+			"edges":	[4, 8, 9]
+		}, {
+			"id":	11,
+			"x":	66,
 			"y":	57,
 			"type":	"s",
-			"edges":	[2, 5, 9]
+			"edges":	[5, 9, 10]
 		}],
 	"edge":	[{
 			"id":	1,
 			"vertices":	[2, 8]
 		}, {
 			"id":	2,
-			"vertices":	[3, 10]
+			"vertices":	[3, 9]
 		}, {
 			"id":	3,
 			"vertices":	[4, 9]
 		}, {
 			"id":	4,
-			"vertices":	[5, 9]
+			"vertices":	[5, 10]
 		}, {
 			"id":	5,
-			"vertices":	[6, 10]
+			"vertices":	[6, 11]
 		}, {
 			"id":	6,
 			"vertices":	[7, 8]
@@ -83,9 +89,12 @@
 			"vertices":	[8, 1]
 		}, {
 			"id":	8,
-			"vertices":	[9, 3]
+			"vertices":	[9, 10]
 		}, {
 			"id":	9,
-			"vertices":	[10, 2]
+			"vertices":	[10, 11]
+		}, {
+			"id":	10,
+			"vertices":	[11, 2]
 		}]
 }
